@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.36107.64
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NanoReader", "NanoReader\NanoReader.csproj", "{9F52E6F8-64E1-42C6-8296-CE883943100E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9F52E6F8-64E1-42C6-8296-CE883943100E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9F52E6F8-64E1-42C6-8296-CE883943100E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F52E6F8-64E1-42C6-8296-CE883943100E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9F52E6F8-64E1-42C6-8296-CE883943100E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {861923F7-7D55-4EFA-9003-DC03F1479F11}
+	EndGlobalSection
+EndGlobal
