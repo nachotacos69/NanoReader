@@ -4,4 +4,6 @@
 
 - this is just some experimental phase for unpack datas, and probably slightly unreliable, but will get updates on later date.
 
+- need to do documentation on this one as well...
+
 repacking is not possible for the time being
