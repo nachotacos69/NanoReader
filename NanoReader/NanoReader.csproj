@@ -88,5 +88,11 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Docs\PAR_DATA\P1.png" />
+    <Content Include="Docs\PAR_DATA\P2.png" />
+    <Content Include="Docs\PA_BIN_ARC\P1.png" />
+    <Content Include="Docs\PA_BIN_ARC\P2.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
