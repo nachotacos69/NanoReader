@@ -78,9 +78,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DataRead.cs" />
+    <Compile Include="Reading\DataRead.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Reading\PARread.cs" />
+    <Compile Include="Serialize.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

@@ -1,10 +1,7 @@
-﻿// Note to Self: remove lots of these comments, some will be useless in the future.
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using System.Text.Json;
 using ICSharpCode.SharpZipLib.GZip;
 
 namespace NanoReader
@@ -32,33 +29,33 @@ namespace NanoReader
             public int UnknownData2;    // Undocumented value 2
         }
 
-        // Class for JSON serialization entries
-        private class JsonEntry
-        {
-            public string file { get; set; }
-            public bool isCompressed { get; set; }
-        }
-
         // List to hold base table entries
         private static List<BaseTableEntry> baseTableEntries = new List<BaseTableEntry>();
 
-        // List to hold offset table entries 
+        // List to hold offset table entries (data offsets)
         private static List<int> offsetTableEntries = new List<int>();
 
         // Log file path for debug output
         private static string logFilePath;
 
-        
+        // Method to perform the extraction process
         public static void ExtractFiles()
         {
-            // Debug Log
+            // Initialize log file with current date and time
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
             logFilePath = $"Debug_{timestamp}.txt";
 
             LogMessage("Info: Starting extraction process.", ConsoleColor.Green);
 
-            // Dictionary for JSON data (index as key)
-            Dictionary<int, JsonEntry> jsonData = new Dictionary<int, JsonEntry>();
+            // Dictionaries for JSON data sections
+            Dictionary<int, Serialize.JsonEntry> baseEntries = new Dictionary<int, Serialize.JsonEntry>();
+            Dictionary<int, Serialize.JsonEntry> parEntries = new Dictionary<int, Serialize.JsonEntry>();
+
+            int baseIndex = 1;
+            int parIndex = 1;
+
+            // List to hold paths of extracted files for PAR processing
+            List<string> extractedPaths = new List<string>();
 
             // Read pa.bin
             using (FileStream binStream = new FileStream("pa.bin", FileMode.Open, FileAccess.Read))
@@ -104,18 +101,18 @@ namespace NanoReader
                 LogMessage($"Info: Created output folder: {outputFolder}.", ConsoleColor.Green);
             }
 
-            // JSON file name based on pa.arc (without extension)
+            // JSON file name
             string jsonFilePath = "pa.json";
 
             // Open pa.arc for data extraction
             using (FileStream arcStream = new FileStream("pa.arc", FileMode.Open, FileAccess.Read))
             using (BinaryReader arcReader = new BinaryReader(arcStream))
             {
-                // Re-open pa.bin to read names
+                // Re-open pa.bin since we need to seek for names
                 using (FileStream binStream = new FileStream("pa.bin", FileMode.Open, FileAccess.Read))
                 using (BinaryReader binReader = new BinaryReader(binStream))
                 {
-                    // Process each entry
+                    // First pass: Extract all files
                     for (int i = 0; i < baseTableEntries.Count; i++)
                     {
                         BaseTableEntry entry = baseTableEntries[i];
@@ -158,78 +155,109 @@ namespace NanoReader
 
                         // Determine if data is GZIP compressed (check header: 0x1F 0x8B)
                         bool isCompressed = data.Length >= 2 && data[0] == 0x1F && data[1] == 0x8B;
-
-                        // Add to JSON data
-                        int index = i + 1;
-                        jsonData[index] = new JsonEntry { file = fileName, isCompressed = isCompressed };
+                        byte[] dataToWrite = data;
+                        string writePath = fullPath;
+                        bool entryIsCompressed = isCompressed;
 
                         if (isCompressed)
                         {
                             LogMessage($"Info: Detected GZIP compression for {fileName}.", ConsoleColor.Green);
 
-                            // Check if file has .gz extension
-                            // So when being decompressed, best way to not overwrite this is to create a output file without .gz)
-                            // Example: data.pr.gz will turn to data.pr when decompressed
-                            // for the time being, this will do the trick.
-                            bool isGzFormat = fileName.EndsWith(".gz", StringComparison.OrdinalIgnoreCase);
-
-                            byte[] decompressedData;
                             try
                             {
-                                // Decompress the data
                                 using (MemoryStream inStream = new MemoryStream(data))
                                 using (MemoryStream outStream = new MemoryStream())
                                 {
                                     GZip.Decompress(inStream, outStream, false);
-                                    decompressedData = outStream.ToArray();
+                                    dataToWrite = outStream.ToArray();
+                                }
+                                entryIsCompressed = false; // Decompressed data is not compressed
+
+                                // If file has .gz extension and no other extension, keep name but write decompressed
+                                if (fileName.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) &&
+                                    !Path.GetFileNameWithoutExtension(fileName).Contains("."))
+                                {
+                                    // Overwrite with decompressed data, keep .gz name
+                                    writePath = fullPath;
+                                }
+                                else if (fileName.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Remove .gz for decompressed data
+                                    writePath = Path.Combine(outputFolder, fileName.Substring(0, fileName.Length - 3));
                                 }
                             }
                             catch (Exception ex)
                             {
                                 LogMessage($"Error: Decompression failed for {fileName}: {ex.Message}", ConsoleColor.Red);
                                 // Fallback: Write compressed data
-                                File.WriteAllBytes(fullPath, data);
-                                LogMessage($"Info: Wrote compressed data as fallback for {fullPath}", ConsoleColor.Green);
-                                continue;
-                            }
-
-                            if (isGzFormat)
-                            {
-                                File.WriteAllBytes(fullPath, data);
-                                LogMessage($"Info: Extracted compressed file: {fullPath}", ConsoleColor.Green);
-
-                                // Write decompressed data to file without .gz format
-                                string withoutGz = fileName.Substring(0, fileName.Length - 3);
-                                string decompressedPath = Path.Combine(outputFolder, withoutGz);
-                                string decompressedDir = Path.GetDirectoryName(decompressedPath);
-                                if (!Directory.Exists(decompressedDir))
-                                {
-                                    Directory.CreateDirectory(decompressedDir);
-                                    LogMessage($"Info: Created directory: {decompressedDir}", ConsoleColor.Green);
-                                }
-                                File.WriteAllBytes(decompressedPath, decompressedData);
-                                LogMessage($"Info: Extracted decompressed file: {decompressedPath}", ConsoleColor.Green);
-                            }
-                            else
-                            {
-                                // Write decompressed data to the original path
-                                File.WriteAllBytes(fullPath, decompressedData);
-                                LogMessage($"Info: Extracted decompressed file: {fullPath}", ConsoleColor.Green);
+                                dataToWrite = data;
+                                writePath = fullPath;
+                                entryIsCompressed = true;
                             }
                         }
-                        else
+
+                        // Ensure directory for writePath
+                        string writeDir = Path.GetDirectoryName(writePath);
+                        if (!Directory.Exists(writeDir))
                         {
-                            // Not compressed: Write data directly
-                            File.WriteAllBytes(fullPath, data);
-                            LogMessage($"Info: Extracted file: {fullPath}", ConsoleColor.Green);
+                            Directory.CreateDirectory(writeDir);
+                            LogMessage($"Info: Created directory: {writeDir}", ConsoleColor.Green);
                         }
+
+                        // Write the file
+                        File.WriteAllBytes(writePath, dataToWrite);
+                        LogMessage($"Info: Extracted file: {writePath}", ConsoleColor.Green);
+
+                        // Add to base entries
+                        baseEntries[baseIndex++] = new Serialize.JsonEntry { file = writePath, isCompressed = entryIsCompressed };
+
+                        // Store path for PAR processing
+                        extractedPaths.Add(writePath);
                     }
                 }
             }
 
-            // Serialize and write JSON file
-            string json = JsonSerializer.Serialize(jsonData, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(jsonFilePath, json);
+            // Process PAR files one by one
+            foreach (string path in extractedPaths)
+            {
+                byte[] data;
+                try
+                {
+                    data = File.ReadAllBytes(path);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage($"Error: Failed to read file for PAR check {path}: {ex.Message}", ConsoleColor.Red);
+                    continue;
+                }
+
+                // Check if data is a PAR archive
+                bool isPar = data.Length >= 4 && data[0] == 0x50 && data[1] == 0x41 && data[2] == 0x52 && data[3] == 0x00;
+
+                if (isPar)
+                {
+                    LogMessage($"Info: Detected PAR archive in {path}. Extracting subfiles.", ConsoleColor.Green);
+
+                    // Create folder for PAR extraction
+                    string parFolder = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(path));
+                    if (!Directory.Exists(parFolder))
+                    {
+                        Directory.CreateDirectory(parFolder);
+                        LogMessage($"Info: Created PAR output folder: {parFolder}", ConsoleColor.Green);
+                    }
+
+                    // Extract PAR subfiles
+                    PARread.ExtractPAR(data, path, ref parIndex, parEntries);
+                }
+            }
+
+            // Serialize and write JSON file with sections
+            var allData = new Dictionary<string, Dictionary<int, Serialize.JsonEntry>>
+            {
+                ["BASE"] = baseEntries,
+                ["PAR SECTION"] = parEntries
+            };
+            Serialize.WriteJson(allData, jsonFilePath);
             LogMessage($"Info: Generated JSON file: {jsonFilePath}", ConsoleColor.Green);
 
             LogMessage("Info: Extraction completed.", ConsoleColor.Green);
@@ -275,7 +303,7 @@ namespace NanoReader
             }
         }
 
-        // Method to read null-terminated string for file name
+        // null-terminated string
         private static string ReadFileName(BinaryReader reader, int offset)
         {
             reader.BaseStream.Seek(offset, SeekOrigin.Begin);
@@ -288,8 +316,8 @@ namespace NanoReader
             return sb.ToString();
         }
 
-       // Log Messages
-        private static void LogMessage(string message, ConsoleColor color)
+        
+        public static void LogMessage(string message, ConsoleColor color)
         {
             Console.ForegroundColor = color;
             Console.WriteLine(message);
